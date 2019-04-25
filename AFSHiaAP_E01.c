@@ -9,31 +9,26 @@
 #include <sys/time.h>
 #include <stdlib.h>
 
-const char *dirpath = "/home/pristiz/shift4";
-
+const char *dirpath = "/home/rifqi/shift4";
 const char *cipher = "qE1~ YMUR2\"`hNIdPzi%^t@(Ao:=CQ,nx4S[7mHFye#aT6+v)DfKL$r?bkOGB>}!9_wV']jcp5JZ&Xl|\\8s;g<{3.u*W-0";
 
 int strend(const char *s, const char *t)
 {
-    size_t ls = strlen(s); // find length of s
-    size_t lt = strlen(t); // find length of t
-    if (ls >= lt)          // check if t can fit in s
-    {
-        // point s to where t should start and compare the strings from there
-        return (0 == memcmp(t, s + (ls - lt), lt));
-    }
-    return 0; // t was longer than s
+    char lastl[strlen(t)];
+    int delta = strlen(s) - strlen(t);
+    sprintf(lastl, "%s", s + delta);
+    return (strcmp(lastl, t) == 0 ? 1 : 0);
 }
 
 const char *rot(const char *a, int enc)
 {
-    printf("ROT %d %s \n", enc,  a);
     if (strend(a, ".") == 1 || strend(a, "..") == 1)
         return a;
     char *strtorotate = malloc(strlen(a) * sizeof(char) + 1);
-    memcpy(strtorotate, a, strlen(a));
+    sprintf(strtorotate,"%s",a);
     for (int i = 0; i < strlen(strtorotate); i++)
     {
+        if(strtorotate[i] == '\0') break;
         for (int j = 0; j < strlen(cipher); j++)
         {
             if (cipher[j] == strtorotate[i])
@@ -58,45 +53,24 @@ const char *rot(const char *a, int enc)
             }
         }
     }
-    strcat(strtorotate, "\0");
     return strtorotate;
-}
-
-const char *translatePath(const char *path, int a)
-{
-    int s = strlen(dirpath);
-    int t = strlen(path);
-
-    char *l = malloc(sizeof(char) * s);
-    memcpy(l, path, s);
-
-    if (strcmp(l, dirpath) == 0)
-    {
-        char *b = malloc(sizeof(char) * (t - s));
-        memcpy(b, path + s, t - s);
-        char *c = malloc(sizeof(char) * t);
-        memcpy(c, dirpath, s);
-        memcpy(c + s, rot(b, a), t - s);
-        free(b);
-        free(l);
-        return c;
-    }
-    else
-    {
-        free(l);
-        return path;
-    }
 }
 
 static int xmp_getattr(const char *path, struct stat *stbuf)
 {
+    char dname[1000];
+    sprintf(dname, "%s%s", dirpath, rot(path, 1));
+    if(strend(path,"/.")){
+        dname[strlen(dname) - 2] = '.';
+    }else if(strend(path,"/..")){
+        dname[strlen(dname) - 2] = '.';
+        dname[strlen(dname) - 3] = '.';
+    }
+
+    printf("###LOOKING A %s\n", dname);
     int res;
 
-    char a[1000] = "";
-    sprintf(a, "%s%s", dirpath, rot(path, 1));
-
-    res = lstat(a, stbuf);
-
+    res = lstat(dname, stbuf);
     if (res == -1)
         return -errno;
 
@@ -106,17 +80,24 @@ static int xmp_getattr(const char *path, struct stat *stbuf)
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                        off_t offset, struct fuse_file_info *fi)
 {
+    char dname[1000];
+    sprintf(dname, "%s%s", dirpath, rot(path, 1));
+    if(strend(path,"/.")){
+        dname[strlen(dname) - 2] = '.';
+    }else if(strend(path,"/..")){
+        dname[strlen(dname) - 2] = '.';
+        dname[strlen(dname) - 3] = '.';
+    }
+
+    printf("################################################\n");
+    printf("###LOOKING D %s\n", dname);
     DIR *dp;
     struct dirent *de;
 
     (void)offset;
     (void)fi;
 
-    char a[1000] = "";
-    sprintf(a, "%s%s", dirpath, rot(path, 1));
-    int res = 0;
-
-    dp = opendir(a);
+    dp = opendir(dname);
     if (dp == NULL)
         return -errno;
 
@@ -126,8 +107,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         memset(&st, 0, sizeof(st));
         st.st_ino = de->d_ino;
         st.st_mode = de->d_type << 12;
-        res = (filler(buf, rot(de->d_name, 0), &st, 0));
-        if (res != 0)
+        if (filler(buf, rot(de->d_name,0), &st, 0))
             break;
     }
 
@@ -139,7 +119,7 @@ static int xmp_mkdir(const char *path, mode_t mode)
 {
     int res;
 
-    char a[1000] = "";
+    char a[1000];
     sprintf(a, "%s%s", dirpath, rot(path, 1));
 
     res = mkdir(a, mode);
@@ -153,7 +133,7 @@ static struct fuse_operations xmp_oper = {
     .getattr = xmp_getattr,
     .readdir = xmp_readdir,
     .mkdir = xmp_mkdir,
-    // .read = xmp_read,
+    // .read		= xmp_read,
 };
 
 int main(int argc, char *argv[])
