@@ -23,6 +23,52 @@ struct videoSplit
     int max;
 };
 
+int remove_directory(const char *path)
+{
+    DIR *d = opendir(path);
+    size_t path_len = strlen(path);
+    int r = -1;
+
+    if (d)
+    {
+        struct dirent *p;
+        r = 0;
+        while (!r && (p = readdir(d)))
+        {
+            int r2 = -1;
+            char *buf;
+            size_t len;
+
+            /* Skip the names "." and ".." as we don't want to recurse on them. */
+            if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
+                continue;
+
+            len = path_len + strlen(p->d_name) + 2;
+            buf = malloc(len);
+
+            if (buf)
+            {
+                struct stat statbuf;
+                snprintf(buf, len, "%s/%s", path, p->d_name);
+                if (!stat(buf, &statbuf))
+                {
+                    if (S_ISDIR(statbuf.st_mode))
+                        r2 = remove_directory(buf);
+                    else
+                        r2 = unlink(buf);
+                }
+                free(buf);
+            }
+            r = r2;
+        }
+        closedir(d);
+    }
+
+    if (!r)
+        r = rmdir(path);
+    return r;
+}
+
 int strstart(const char *s, const char *t)
 {
     char lastl[strlen(t) + 1];
@@ -149,7 +195,8 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                     p = strtok(NULL, ".");
                 }
             }
-            if(filter) continue;
+            if (filter)
+                continue;
         }
         if (filler(buf, v ? de->d_name : rot(de->d_name, 0), &st, 0))
             break;
@@ -460,6 +507,9 @@ static struct fuse_operations xmp_oper = {
 
 void removeVideos()
 {
+    char d[256];
+    sprintf(d, "%s/%s", dirpath, rot("Videos", 1));
+    remove_directory(d);
 }
 
 void *videoThread()
@@ -485,7 +535,6 @@ void *videoThread()
             sprintf(first, "%s", p);
             while (p != NULL)
             {
-                printf("%s\n", p);
                 if (strcmp(p, "mp4") == 0 || strcmp(p, "mkv") == 0)
                 {
                     char fname[1000];
@@ -517,12 +566,53 @@ void *videoThread()
         }
         closedir(dp);
 
-        FILE *p = fopen("/home/rifqi/aa.txt", "w");
         for (int i = 0; i < 10; i++)
         {
-            fprintf(p, "%s, %d\n", v[i].filename, v[i].max);
+            if (strcmp(v[i].filename, "") == 0)
+            {
+                continue;
+            }
+            else
+            {
+                char fname[1000];
+                sprintf(fname, "%s/%s/%s", dirpath, rot("Videos", 1), rot(v[i].filename, 1));
+                printf("Merging file %s...\n", fname);
+                FILE *p = fopen(fname, "w");
+                if (p != NULL)
+                {
+                    for (int j = 0; j <= v[i].max; j++)
+                    {
+                        char benc[500];
+                        sprintf(benc, "%s.%03d", v[i].filename, j);
+                        char *enc = rot(benc, 1);
+                        char sname[1000];
+                        sprintf(sname, "%s/%s", dirpath, enc);
+                        printf("\tfrom file %s...\n", sname);
+                        FILE *q = fopen(sname, "r");
+                        if (q != NULL)
+                        {
+                            do
+                            {
+                                int c = fgetc(q);
+                                if (feof(q))
+                                    break;
+                                fputc(c, p);
+                            } while (1);
+                            fclose(q);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    fclose(p);
+                }
+                else
+                {
+                    printf("GAGAL\n");
+                }
+            }
         }
-        fclose(p);
     }
     return 0;
 }

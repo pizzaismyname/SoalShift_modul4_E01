@@ -64,11 +64,24 @@ const char *translatePath(const char *path, int a)
     }
 }
 
+int strend(const char *s, const char *t)
+{
+    char lastl[strlen(t)];
+    int delta = strlen(s) - strlen(t);
+    sprintf(lastl, "%s", s + delta);
+    return (strcmp(lastl, t) == 0 ? 1 : 0);
+}
+
+int strstart(const char *s, const char *t){
+    char lastl[strlen(t) + 1];
+    int delta = strlen(s) - strlen(t);
+    memcpy(lastl,s,strlen(t));
+    lastl[strlen(t)] = '\0';
+    return (strcmp(lastl, t) == 0 ? 1 : 0);
+}
+
 int main()
 {
-    char c[] = "INI_FOLDER/halo";
-    char d[] = "n,nsbZ]wio/QBE#";
-
-    printf("%s", translatePath("/home/pristiz/Documents/INI_FOLDER/halo", 1));
+    printf("%s/%s.%03d", dir, "movie.mkv", 0);
     return 0;
 }
