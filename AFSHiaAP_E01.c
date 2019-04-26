@@ -15,8 +15,11 @@
 #include <sys/xattr.h>
 #include <sys/wait.h>
 #include <libgen.h>
+#include <pwd.h>
+#include <grp.h>
+#include <time.h>
 
-const char *dirpath = "/home/rifqi/shift4";
+const char *dirpath = "/home/pristiz/shift4";
 const char *cipher = "qE1~ YMUR2\"`hNIdPzi%^t@(Ao:=CQ,nx4S[7mHFye#aT6+v)DfKL$r?bkOGB>}!9_wV']jcp5JZ&Xl|\\8s;g<{3.u*W-0";
 
 struct videoSplit
@@ -240,6 +243,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     while ((de = readdir(dp)) != NULL)
     {
+
         struct stat st;
         memset(&st, 0, sizeof(st));
         st.st_ino = de->d_ino;
@@ -264,6 +268,35 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             }
             if (filter)
                 continue;
+
+            struct stat info;
+            memset(&info, 0, sizeof(info));
+            stat(rot(de->d_name, 0), &info);
+            struct passwd *pw = getpwuid(info.st_uid);
+            struct group *gr = getgrgid(info.st_gid);
+            time_t file_tm = info.st_atime;
+            struct tm *atime = localtime(&file_tm);
+            char strtime[100];
+            strftime(strtime, 100, "%c", atime);
+
+            char a[256];
+            sprintf(a, "%s/filemiris.txt", dirpath);
+            FILE *bahaya;
+            bahaya = fopen(a, "a+");
+            if (strcmp(pw->pw_name, "chipset") == 0 || strcmp(pw->pw_name, "ic_controller") == 0 || strcmp(gr->gr_name, "rusak"))
+            {
+                mode_t file_md = info.st_mode;
+                if ((file_md & S_IRWXU) && (file_md & S_IRWXG) && (file_md & S_IRWXO))
+                {
+                    fprintf(bahaya, "%s\t%d\t%d\t%s\n", rot(de->d_name, 0), pw->pw_uid, gr->gr_gid, strtime);
+                }
+            }
+            if (strcmp(pw->pw_name, "pristiz") == 0 || strcmp(gr->gr_name, "pristiz"))
+            {
+                fprintf(bahaya, "%s\t%d\t%d\t%s\n", rot(de->d_name, 0), pw->pw_uid, gr->gr_gid, strtime);
+            }
+
+            fclose(bahaya);
         }
         if (filler(buf, v ? de->d_name : rot(de->d_name, 0), &st, 0))
             break;
@@ -621,6 +654,25 @@ static int xmp_write(const char *path, const char *buf, size_t size,
     return res;
 }
 
+static int xmp_utimens(const char *path, const struct timespec ts[2])
+{
+	int res;
+	struct timeval tv[2];
+
+	tv[0].tv_sec = ts[0].tv_sec;
+	tv[0].tv_usec = ts[0].tv_nsec / 1000;
+	tv[1].tv_sec = ts[1].tv_sec;
+	tv[1].tv_usec = ts[1].tv_nsec / 1000;
+
+    char a[256];
+    sprintf(a, "%s%s", dirpath, rot(path, 1));
+	res = utimes(a, tv);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
 static int xmp_release(const char *path, struct fuse_file_info *fi)
 {
     (void)path;
@@ -691,6 +743,7 @@ static struct fuse_operations xmp_oper = {
     .create = xmp_create,
     .read = xmp_read,
     .write = xmp_write,
+    .utimens = xmp_utimens,
     .release = xmp_release,
     .setxattr = xmp_setxattr,
     .getxattr = xmp_getxattr,
