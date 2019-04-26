@@ -291,11 +291,13 @@ static int xmp_rename(const char *from, const char *to)
 {
     int res;
 
-    printf("#REN %s -> %s\n", from, to);
+    char a[256];
+    sprintf(a, "%s%s", dirpath, rot(from, 1));
 
-    return -errno;
+    char b[256];
+    sprintf(b, "%s%s", dirpath, rot(to, 1));
 
-    res = rename(from, to);
+    res = rename(a, b);
     if (res == -1)
         return -errno;
 
