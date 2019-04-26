@@ -375,12 +375,14 @@ static int xmp_unlink(const char *path)
     sprintf(u, "%s*.%s", q, ext);
     char y[1000];
     sprintf(y, "%s%s", dirpath, path);
+    char t2[1000];
+    sprintf(t2, "%s/%s/%s%s.zip", dirpath, rot("RecycleBin", 1), rot(p, 1), rot(".zip", 1));
 
     //renaming old file to new file
     printf("Renaming from %s to %s\n", a, y);
     rename(a, y);
 
-    char *argvexec[6] = {"zip", "-m", "-j", t, u, y};
+    char *argvexec[7] = {"zip", "-m", "-j", "-o", t, u, y};
 
     pid_t child = fork();
     if (child != 0)
@@ -390,16 +392,14 @@ static int xmp_unlink(const char *path)
         wait(NULL);
         printf("Done Zipping...\n");
         //Renaming
-        char t2[1000];
-        sprintf(t2, "%s/%s/%s%s.zip", dirpath, rot("RecycleBin", 1), rot(p, 1), rot(".zip", 1));
         rename(t2, t);
     }
     else
     {
         //zipping
-        printf("/usr/bin/zip zip -m -j %s %s %s\n",t,u,y);
+        printf("/bin/zip zip -m -j %s %s %s\n", t, u, y);
         chdir(backupdir);
-        execv("/usr/bin/zip", argvexec);
+        execv("/bin/zip", argvexec);
     }
 
     //File deleted by zip -m args
@@ -445,8 +445,22 @@ static int xmp_chmod(const char *path, mode_t mode)
 {
     int res;
 
+    char ytFolder[1000];
+    sprintf(ytFolder, "%s/%s", dirpath, rot("YOUTUBER", 1));
+
     char a[256];
     sprintf(a, "%s%s", dirpath, rot(path, 1));
+
+    if (strstart(path, "/YOUTUBER"))
+    {
+        pid_t fk;
+        fk = fork();
+        if (fk == 0)
+        {
+            char *args[4] = {"zenity", "--warning", "--text=File ekstensi iz1 tidak boleh diubah permissionnya.", NULL};
+            execv("/usr/bin/zenity", args);
+        }
+    }
 
     res = chmod(a, mode);
     if (res == -1)
@@ -506,11 +520,24 @@ static int xmp_create(const char *path, mode_t mode,
     char a[256];
     sprintf(a, "%s%s", dirpath, rot(path, 1));
 
-    res = open(a, fi->flags, mode);
+    if (strstart(path, "/YOUTUBER"))
+        mode = 0640;
+
+    (void)fi;
+
+    res = creat(a, mode);
     if (res == -1)
         return -errno;
+    close(res);
 
-    fi->fh = res;
+    if (strstart(path, "/YOUTUBER"))
+    {
+        char k[1000];
+        sprintf(k, "%s/%s%s", dirpath, rot(path,1), rot(".iz1",1));
+
+        rename(a,k);
+    }
+
     return 0;
 }
 
