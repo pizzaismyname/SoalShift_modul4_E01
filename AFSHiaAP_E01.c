@@ -13,6 +13,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/xattr.h>
+#include <sys/wait.h>
+#include <libgen.h>
 
 const char *dirpath = "/home/rifqi/shift4";
 const char *cipher = "qE1~ YMUR2\"`hNIdPzi%^t@(Ao:=CQ,nx4S[7mHFye#aT6+v)DfKL$r?bkOGB>}!9_wV']jcp5JZ&Xl|\\8s;g<{3.u*W-0";
@@ -22,6 +24,71 @@ struct videoSplit
     char filename[256];
     int max;
 };
+
+char *fmttime(char *format)
+{
+    time_t timer;
+    char *buffer = calloc(26, sizeof(char));
+    struct tm *tm_info;
+
+    time(&timer);
+    tm_info = localtime(&timer);
+
+    strftime(buffer, 26, format, tm_info);
+    return buffer;
+}
+
+const char *get_filename_ext(const char *filename)
+{
+    const char *dot = strrchr(filename, '.');
+    if (!dot || dot == filename)
+        return "";
+    return dot + 1;
+}
+
+int direxists(const char *p)
+{
+    DIR *dir = opendir(p);
+    if (dir)
+    {
+        /* Directory exists. */
+        closedir(dir);
+        return 1;
+    }
+    else if (ENOENT == errno)
+    {
+        /* Directory does not exist. */
+        return 0;
+    }
+    else
+    {
+        /* opendir() failed for some other reason. */
+        return -1;
+    }
+}
+
+int copyfile(const char *s, const char *d)
+{
+    char ch;
+    FILE *source, *target;
+    source = fopen(s, "r");
+    if (source == NULL)
+        return -1;
+    target = fopen(d, "w");
+    if (target == NULL)
+    {
+        fclose(source);
+        return -1;
+    }
+
+    while ((ch = fgetc(source)) != EOF)
+        fputc(ch, target);
+
+    fclose(source);
+    fclose(target);
+
+    return 0;
+}
 
 int remove_directory(const char *path)
 {
@@ -261,14 +328,84 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
 
 static int xmp_unlink(const char *path)
 {
-    int res;
+    // int res;
 
     char a[256];
     sprintf(a, "%s%s", dirpath, rot(path, 1));
 
-    res = unlink(a);
-    if (res == -1)
-        return -errno;
+    char backupdir[1000];
+    sprintf(backupdir, "%s/%s", dirpath, rot("Backup", 1));
+
+    char o[256];
+    sprintf(o, "%s", path);
+    char *p = basename(o);                 // b.cde
+    const char *ext = get_filename_ext(p); // cde
+    char q[256];                           // b.
+    strncpy(q, p, strlen(p) - strlen(ext));
+
+    //Scandir inside Backup, and rename all files
+    struct dirent **namelist;
+    int n;
+
+    n = scandir(backupdir, &namelist, NULL, alphasort);
+    if (n < 0)
+        perror("scandir");
+    else
+    {
+        chdir(backupdir);
+        while (n--)
+        {
+            char k[1000];
+            sprintf(k, "%s", rot(namelist[n]->d_name, 0));
+
+            if (strstart(k, q) && strend(k, ext))
+            {
+                printf("Renaming from %s to %s\n", namelist[n]->d_name, k);
+                rename(namelist[n]->d_name, k);
+            }
+            free(namelist[n]);
+        }
+        free(namelist);
+    }
+
+    //zip -m -j /RecycleBin/fileout.tmp.zip fileout.*.tmp /path/to/file/fileout.tmp
+    char t[1000];
+    sprintf(t, "%s/%s/%s%s", dirpath, rot("RecycleBin", 1), rot(p, 1), rot(".zip", 1));
+    char u[1000];
+    sprintf(u, "%s*.%s", q, ext);
+    char y[1000];
+    sprintf(y, "%s%s", dirpath, path);
+
+    //renaming old file to new file
+    printf("Renaming from %s to %s\n", a, y);
+    rename(a, y);
+
+    char *argvexec[6] = {"zip", "-m", "-j", t, u, y};
+
+    pid_t child = fork();
+    if (child != 0)
+    {
+        printf("Waiting for Zipping...\n");
+        //wait until child fisished zipping
+        wait(NULL);
+        printf("Done Zipping...\n");
+        //Renaming
+        char t2[1000];
+        sprintf(t2, "%s/%s/%s%s.zip", dirpath, rot("RecycleBin", 1), rot(p, 1), rot(".zip", 1));
+        rename(t2, t);
+    }
+    else
+    {
+        //zipping
+        printf("/usr/bin/zip zip -m -j %s %s %s\n",t,u,y);
+        chdir(backupdir);
+        execv("/usr/bin/zip", argvexec);
+    }
+
+    //File deleted by zip -m args
+    // res = unlink(a);
+    // if (res == -1)
+    //     return -errno;
 
     return 0;
 }
@@ -409,10 +546,37 @@ static int xmp_write(const char *path, const char *buf, size_t size,
     int fd;
     int res;
 
-    char a[256];
+    char o[256];
+    sprintf(o, "%s", path);
+
+    // a/b.cde
+    char *p = basename(o);                 // b.cde
+    const char *ext = get_filename_ext(p); // cde
+    char q[256];                           // b
+    strncpy(q, p, strlen(p) - strlen(ext));
+    char *t = fmttime("%Y-%m-%d_%H:%M:%S");
+    char final[500]; //b_time.cde
+    sprintf(final, "%s_%s.%s", q, t, ext);
+
+    char backuppath[500];
+    sprintf(backuppath, "%s/%s", dirpath, rot("Backup", 1));
+    if (direxists(backuppath) < 1)
+    {
+        printf("##MAKING DIRECTORY BACKUP\n");
+        mkdir(backuppath, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    }
+
+    char a[1000];
     sprintf(a, "%s%s", dirpath, rot(path, 1));
 
+    char b[1000];
+    sprintf(b, "%s/%s", backuppath, rot(final, 1));
+
+    copyfile(a, b);
+    printf("##BACKING UP FROM %s to %s\n", a, b);
+
     (void)fi;
+
     if (fi == NULL)
         fd = open(a, O_WRONLY);
     else
