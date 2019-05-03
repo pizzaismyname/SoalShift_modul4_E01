@@ -280,20 +280,17 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             strftime(strtime, 100, "%c", atime);
 
             char a[256];
-            sprintf(a, "%s/filemiris.txt", dirpath);
+            sprintf(a, "%s/%s", dirpath, rot("filemiris.txt",1));
+            printf("%s\n",a);
             FILE *bahaya;
             bahaya = fopen(a, "a+");
-            if (strcmp(pw->pw_name, "chipset") == 0 || strcmp(pw->pw_name, "ic_controller") == 0 || strcmp(gr->gr_name, "rusak"))
+            if (strcmp(pw->pw_name, "pristiz") == 0 || strcmp(pw->pw_name, "ic_controller") == 0 || strcmp(gr->gr_name, "rusak"))
             {
-                mode_t file_md = info.st_mode;
-                if ((file_md & S_IRWXU) && (file_md & S_IRWXG) && (file_md & S_IRWXO))
-                {
+//                mode_t file_md = info.st_mode;
+//                if ((file_md & S_IRWXU) && (file_md & S_IRWXG) && (file_md & S_IRWXO))
+//                {
                     fprintf(bahaya, "%s\t%d\t%d\t%s\n", rot(de->d_name, 0), pw->pw_uid, gr->gr_gid, strtime);
-                }
-            }
-            if (strcmp(pw->pw_name, "pristiz") == 0 || strcmp(gr->gr_name, "pristiz"))
-            {
-                fprintf(bahaya, "%s\t%d\t%d\t%s\n", rot(de->d_name, 0), pw->pw_uid, gr->gr_gid, strtime);
+//                }
             }
 
             fclose(bahaya);
