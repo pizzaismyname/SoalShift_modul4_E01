@@ -19,7 +19,7 @@
 #include <grp.h>
 #include <time.h>
 
-const char *dirpath = "/home/pristiz/shift4";
+const char *dirpath = "/home/rifqi/shift4";
 const char *cipher = "qE1~ YMUR2\"`hNIdPzi%^t@(Ao:=CQ,nx4S[7mHFye#aT6+v)DfKL$r?bkOGB>}!9_wV']jcp5JZ&Xl|\\8s;g<{3.u*W-0";
 
 struct videoSplit
@@ -169,11 +169,11 @@ char *rot(const char *a, int enc)
             {
                 if (enc == 1)
                 {
-                    strtorotate[i] = cipher[(j + 17) % strlen(cipher)];
+                    strtorotate[i] = cipher[(j + 31) % strlen(cipher)];
                 }
                 else
                 {
-                    int r = (j - 17);
+                    int r = (j - 31);
                     if (r < 0)
                     {
                         strtorotate[i] = cipher[strlen(cipher) + r];
@@ -430,9 +430,10 @@ static int xmp_unlink(const char *path)
     else
     {
         //zipping
-        printf("/bin/zip zip -m -j %s %s %s\n", t, u, y);
+        printf("/usr/bin/zip zip -m -j %s %s %s\n", t, u, y);
+        printf("***@@@@%s\n", backupdir);
         chdir(backupdir);
-        execv("/bin/zip", argvexec);
+        execv("/usr/bin/zip", argvexec);
     }
 
     //File deleted by zip -m args
@@ -484,14 +485,25 @@ static int xmp_chmod(const char *path, mode_t mode)
     char a[256];
     sprintf(a, "%s%s", dirpath, rot(path, 1));
 
-    if (strstart(path, "/YOUTUBER"))
+    if (strstart(path, "/YOUTUBER") && !S_ISDIR(mode))
     {
-        pid_t fk;
-        fk = fork();
-        if (fk == 0)
-        {
-            char *args[4] = {"zenity", "--warning", "--text=File ekstensi iz1 tidak boleh diubah permissionnya.", NULL};
-            execv("/usr/bin/zenity", args);
+        char o[256];
+        sprintf(o, "%s", path);
+        char *p = basename(o);                 // b.cde
+        const char *ext = get_filename_ext(p); // cde
+        char q[256];                           // b.
+        strncpy(q, p, strlen(p) - strlen(ext));
+
+        if(strcmp(ext,"iz1") == 0){
+           printf("@@@@@@@@@@TIDAK BOLEH DIRUBAH!!!!\n");
+            pid_t fk;
+            fk = fork();
+            if (fk == 0)
+            {
+                char *args[4] = {"zenity", "--warning", "--text=File ekstensi iz1 tidak boleh diubah permissionnya.", NULL};
+                execv("/usr/bin/zenity", args);
+            }
+            return -errno;
         }
     }
 
